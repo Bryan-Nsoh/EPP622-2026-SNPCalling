@@ -1,10 +1,6 @@
 # Test 2 — Lab Notebook
 
-Full assignment template for Bryan Nsoh. Results and commands remain to be completed from actual work.
-
 Source: [Official course template](https://github.com/mestato/EPP622_2026/wiki/Test-2-Wiki-template-rendered)
-
-This repository copy can be pasted into the GitHub wiki when its first page is created.
 
 **Instructions:** Copy each the template to your own github wiki. You are welcome to break into multiple pages if that makes it easier for you, just keep all the sections.
 
@@ -15,7 +11,7 @@ This repository copy can be pasted into the GitHub wiki when its first page is c
 
 Your Name: Bryan Nsoh
 
-Server: -
+Server: Sphinx
 
 Repository URL: https://github.com/Bryan-Nsoh/EPP622-2026-SNPCalling
 
