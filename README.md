@@ -20,27 +20,44 @@ Repository URL: https://github.com/Bryan-Nsoh/EPP622-2026-SNPCalling
 Create directory and symbolically link provided files.
 
 ```bash
+# Note that all pasted code is run from .sh files
 
 # Add path that all subsequent code will reuse to bashrc
 export READS_DIR="/nfs/home/bnsoh/test2/reads"
 export RESULTS_DIR="/nfs/home/bnsoh/test2/results"
 
-commands
+# make symlinks of the data from the course project to my test2 folder
+#!/usr/bin/env bash
+for file in /lustre/isaac24/proj/UTK0505/test2/reads/*.fastq.gz
+do
+        ln -s $file /nfs/home/bnsoh/test2/reads
+        echo "copied $file to here"
+done
 ```
 
 ## Step 1: Quality Control (FastQC + MultiQC)
 
 ### Commands
 
-Comments 
+Create results directories that will be reused downstream. Run fastqc and multiqc sequrntially on the symlinked data. 
 
 ```
-commands
+#!/usr/bin/env bash
+
+mkdir -p "$RESULTS_DIR"/01_fastqc/
+mkdir -p "$RESULTS_DIR"/01_multiqc/
+
+for file in "$READS_DIR"/*.fastq.gz
+do
+        fastqc "$file" -o "$RESULTS_DIR"/01_fastqc/
+done
+
+multiqc "$RESULTS_DIR"/01_fastqc/ -o "$RESULTS_DIR"/01_multiqc/
 ```
 
 ### Results
 
-MultiQC report path and name: `_______`
+MultiQC report path and name: `/nfs/home/bnsoh/test2/results/01_multiqc/multiqc_report.html`
 
 | Sample | Total reads | Quality issues? | Average Genome Coverage |
 | --- | --- | --- | --- |
