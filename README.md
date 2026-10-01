@@ -8,7 +8,6 @@ Source: [Official course template](https://github.com/mestato/EPP622_2026/wiki/T
 
 **Each command needs a comment.** What are you running and why? No need to be too long, but something like "Running FastQC to check the quality of the reads."
 
-
 Your Name: Bryan Nsoh
 
 Server: Sphinx
@@ -55,11 +54,25 @@ done
 multiqc "$RESULTS_DIR"/01_fastqc/ -o "$RESULTS_DIR"/01_multiqc/
 ```
 
+MultiQC gives a rounded number for total reads and does not report total bases per sample. To find out those numbers use this:
+
+```
+for f in *.fastq.gz; do
+  echo -ne "$f\t"
+  zcat "$f" | awk 'NR%4==2{r++; b+=length($0)} END{printf "%d\t%d\t%.1f\n", r, b, b/r}'
+done | column -t
+```
+
+This gives the total reads, then the total bases, then the average read length for each file.
+
 ### Results
 
 MultiQC report path and name: `/nfs/home/bnsoh/test2/results/01_multiqc/multiqc_report.html`
 
-| Sample | Total reads | Quality issues? | Average Genome Coverage |
+One sample has adapter and polyG issues, one sample has low quality, one sample has low coverage, and one is problem free. Label each sample below with its quality issues.
+For each sample, report R1 + R2.
+
+| Sample | Total reads | Total bases | Quality issues? |
 | --- | --- | --- | --- |
 | A | \- | \- | \- |
 | B | \- | \- | \- |
@@ -79,16 +92,30 @@ Comments
 ```
 commands
 ```
+
+MultiQC gives a rounded number for total reads and does not report total bases per sample. To find out those numbers use this:
+
+```
+for f in *.fastq.gz; do
+  echo -ne "$f\t"
+  zcat "$f" | awk 'NR%4==2{r++; b+=length($0)} END{printf "%d\t%d\t%.1f\n", r, b, b/r}'
+done | column -t
+```
+
+This gives the total reads, then the total bases, then the average read length for each file.
+
 ### Results
 
 MultiQC report path and name: `_______`
 
-| Sample | Reads before | Reads after | Mean length before | Mean length after | Average Genome Coverage After |
-| --- | --- | --- | --- | --- | --- |
-| A | \- | \- | \- | \- | \- |
-| B | \- | \- | \- | \- | \- |
-| C | \- | \- | \- | \- | \- |
-| D | \- | \- | \- | \- | \- |
+For each sample, report R1 + R2. Use the reference genome size above to calculate coverage.
+
+| Sample | Reads before | Reads after | Mean length before | Mean length after |
+| --- | --- | --- | --- | --- |
+| A | \- | \- | \- | \- |
+| B | \- | \- | \- | \- |
+| C | \- | \- | \- | \- |
+| D | \- | \- | \- | \- |
 
 ## Step 3: Alignment (bwa-mem2 + samtools)
 
@@ -101,6 +128,7 @@ commands
 
 
 ### Results
+
 MultiQC report path and name: `_______`
 
 | Sample | % mapped | % properly paired | Mean depth |
@@ -121,20 +149,14 @@ commands
 ```
 
 ### Results
-bcftools stats report path and name: `_______`
 
-| Sample | Raw records | SNP records | Indel records | Multiallelic records |
-| --- | --- | --- | --- | --- |
-| A | \- | \- | \- | \- |
-| B | \- | \- | \- | \- |
-| C | \- | \- | \- | \- |
-| D | \- | \- | \- | \- |
+bcftools stats report path and name: `_______`
 
 ## Step 5: Filtering (bcftools filter)
 
 ### Commands
 
-I am going to try a gentle filtering and more stingent filtering.
+I am going to try a gentle filtering and more stingent filtering. (WARNING: These are different filters than what we have seen in class.)
 
 Gentle: exclude variants with a QUAL less than 20 or less than 5 total read depth across all samples.
 
@@ -152,16 +174,15 @@ Stringent: exclude variants with a QUAL less than 30 or less than 10 total read 
 
 ### Results
 
-bcftools stats report path and name for lenient filtering: `_______`
+bcftools stats report path and name for gentle filtering: `_______`
 
 bcftools stats report path and name: for stringent filtering: `_______`
 
-| Sample | SNP records raw | SNP records gentle | SNP records stringent |
-| --- | --- | --- | --- |
-| A | \- | \- | \- |
-| B | \- | \- | \- |
-| C | \- | \- | \- |
-| D | \- | \- | \- |
+| VCF | number of SNPs |
+| --- | --- |
+| raw | \- |
+| gentle | \- |
+| stringent | \- |
 
 ## Step 6: Evaluation Against the Truth Set
 
@@ -193,16 +214,16 @@ From `this folder` that holds all my analysis, here is the directory structure (
 
 | Sample | Filter | TP | FP | FN | Precision | Recall | F1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A | unfiltered | \- | \- | \- | \- | \- | \- |
+| A | raw | \- | \- | \- | \- | \- | \- |
 | A | gentle | \- | \- | \- | \- | \- | \- |
 | A | strict | \- | \- | \- | \- | \- | \- |
-| B | unfiltered | \- | \- | \- | \- | \- | \- |
+| B | raw | \- | \- | \- | \- | \- | \- |
 | B | gentle | \- | \- | \- | \- | \- | \- |
 | B | strict | \- | \- | \- | \- | \- | \- |
-| C | unfiltered | \- | \- | \- | \- | \- | \- |
+| C | raw | \- | \- | \- | \- | \- | \- |
 | C | gentle | \- | \- | \- | \- | \- | \- |
 | C | strict | \- | \- | \- | \- | \- | \- |
-| D | unfiltered | \- | \- | \- | \- | \- | \- |
+| D | raw | \- | \- | \- | \- | \- | \- |
 | D | gentle | \- | \- | \- | \- | \- | \- |
 | D | strict | \- | \- | \- | \- | \- | \- |
 
@@ -212,7 +233,7 @@ Minimum one paragraph each.
 
 > How did samples differ from each other in read count versus in read quality? Why does each matter for SNP calling?
 
-> What are the relative merits and drawbacks of filtering? Interpret the above chart in terms of the original quality issues, and how those yielded different outcomes. When is filtering a good idea vs when it is it a bad idea? Think specifically about false positives vs false negatives. 
+> What are the relative merits and drawbacks of filtering? Interpret the above chart in terms of the original quality issues, and how those yielded different outcomes. When is filtering a good idea vs when it is it a bad idea? Think specifically about false positives vs false negatives.
 
 > Pick **two false negatives** and **two false positives**, from any sample. For each, tell me the sample, tell me the chromosome and coordinate location, put in a screenshot of IGV or JBrowse, and explain the specific cause of the FN or FP call.
 
