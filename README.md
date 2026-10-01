@@ -20,6 +20,11 @@ Repository URL: https://github.com/Bryan-Nsoh/EPP622-2026-SNPCalling
 Create directory and symbolically link provided files.
 
 ```bash
+
+# Add path that all subsequent code will reuse to bashrc
+export READS_DIR="/nfs/home/bnsoh/test2/reads"
+export RESULTS_DIR="/nfs/home/bnsoh/test2/results"
+
 commands
 ```
 
