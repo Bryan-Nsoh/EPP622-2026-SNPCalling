@@ -91,7 +91,32 @@ ADVICE: Its easier to compare the reads pre and post trimming if you run multiqc
 Comments 
 
 ```
-commands
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p "$RESULTS_DIR/02_fastp"
+mkdir -p "$RESULTS_DIR/02_fastp_fastqc"
+mkdir -p "$RESULTS_DIR/02_fastp_multiqc"
+
+# Clean read pairs together and save separate reports per sample
+for sample in A B C D; do
+    fastp \
+        -i "$READS_DIR/Sample_${sample}_R1.fastq.gz" \
+        -I "$READS_DIR/Sample_${sample}_R2.fastq.gz" \
+        -o "$RESULTS_DIR/02_fastp/Sample_${sample}_R1.trimmed.fastq.gz" \
+        -O "$RESULTS_DIR/02_fastp/Sample_${sample}_R2.trimmed.fastq.gz" \
+        --trim_poly_g \
+        --html "$RESULTS_DIR/02_fastp/Sample_${sample}.fastp.html" \
+        --json "$RESULTS_DIR/02_fastp/Sample_${sample}.fastp.json"
+done
+
+# Check cleaned reads and combine their FastQC reports
+fastqc "$RESULTS_DIR"/02_fastp/*.trimmed.fastq.gz \
+    -o "$RESULTS_DIR/02_fastp_fastqc"
+
+multiqc "$RESULTS_DIR/02_fastp_fastqc" \
+    -o "$RESULTS_DIR/02_fastp_multiqc"
+
 ```
 
 MultiQC gives a rounded number for total reads and does not report total bases per sample. To find out those numbers use this:
@@ -107,16 +132,17 @@ This gives the total reads, then the total bases, then the average read length f
 
 ### Results
 
-MultiQC report path and name: `_______`
+MultiQC report path and name: `/nfs/home/bnsoh/test2/results/02_fastp_multiqc/multiqc_report.html`
 
 For each sample, report R1 + R2. Use the reference genome size above to calculate coverage.
 
 | Sample | Reads before | Reads after | Mean length before | Mean length after |
 | --- | --- | --- | --- | --- |
-| A | \- | \- | \- | \- |
-| B | \- | \- | \- | \- |
-| C | \- | \- | \- | \- |
-| D | \- | \- | \- | \- |
+| A | 1609300 | 1609300 | 150.0 | 150.0 |
+| B | 321860 | 321860 | 150.0 | 150.0 |
+| C | 1609300 | 1609300 | 150.0 | 143.8 |
+| D | 1609300 | 1609300 | 150.0 | 150.0 |
+
 
 ## Step 3: Alignment (bwa-mem2 + samtools)
 
