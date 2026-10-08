@@ -19,18 +19,33 @@ Repository URL: https://github.com/Bryan-Nsoh/EPP622-2026-SNPCalling
 Create directory and symbolically link provided files.
 
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
 # Note that all pasted code is run from .sh files
 
 # Add path that all subsequent code will reuse to bashrc
 export READS_DIR="/nfs/home/bnsoh/test2/reads"
 export RESULTS_DIR="/nfs/home/bnsoh/test2/results"
+export REFERENCE_DIR="/nfs/home/bnsoh/test2/reference"
+
+mkdir -p "$READS_DIR" "$RESULTS_DIR" "$REFERENCE_DIR"
+
+# resuable function to link a file indemnpotently so we dont duplicate and make a mess
+link_file() {
+    local file="$1" target="$2/${1##*/}"
+    [[ -L "$target" && "$(readlink "$target")" == "$file" ]] && return 0
+    ln -s "$file" "$target"
+}
 
 # make symlinks of the data from the course project to my test2 folder
-#!/usr/bin/env bash
-for file in /lustre/isaac24/proj/UTK0505/test2/reads/*.fastq.gz
-do
-        ln -s $file /nfs/home/bnsoh/test2/reads
-        echo "copied $file to here"
+for file in /lustre/isaac24/proj/UTK0505/test2/reads/*.fastq.gz; do
+    link_file "$file" "$READS_DIR"
+done
+
+# Link reference genome and indexes for bwamem
+for file in /lustre/isaac24/proj/UTK0505/test2/ref/sacCer3.fa*; do
+    link_file "$file" "$REFERENCE_DIR"
 done
 ```
 
@@ -150,20 +165,49 @@ For each sample, report R1 + R2. Use the reference genome size above to calculat
 Comments 
 
 ```
-commands
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p "$RESULTS_DIR/03_alignment"
+mkdir -p "$RESULTS_DIR/03_multiqc"
+
+for sample in A B C D; do
+    # first align
+    bwa-mem2 mem \
+        "$REFERENCE_DIR/sacCer3.fa" \
+        "$RESULTS_DIR/02_fastp/Sample_${sample}_R1.trimmed.fastq.gz" \
+        "$RESULTS_DIR/02_fastp/Sample_${sample}_R2.trimmed.fastq.gz" \
+        > "$RESULTS_DIR/03_alignment/Sample_${sample}.sam"
+
+    # then convert sam to sorted BAM and sort by reference position
+    samtools sort \
+        -o "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" \
+        "$RESULTS_DIR/03_alignment/Sample_${sample}.sam"
+
+    # index the BAM for access by genomic region
+    samtools index "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam"
+
+    # summarize alignment counts
+    samtools flagstat "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" \
+        > "$RESULTS_DIR/03_alignment/Sample_${sample}.flagstat.txt"
+done
+
+multiqc "$RESULTS_DIR/03_alignment" -o "$RESULTS_DIR/03_multiqc"
+
 ```
 
 
 ### Results
 
-MultiQC report path and name: `_______`
+MultiQC report path and name: `/nfs/home/bnsoh/test2/results/03_multiqc/multiqc_report.html`
 
 | Sample | % mapped | % properly paired | Mean depth |
 | --- | --- | --- | --- |
-| A | \- | \- | \- |
-| B | \- | \- | \- |
-| C | \- | \- | \- |
-| D | \- | \- | \- |
+| A | 100.0% | 100.0% | 20.00 |
+| B | 100.0% | 100.0% | 4.00 |
+| C | 98.0% | 98.0% | 16.46 |
+| D | 100.0% | 100.0% | 19.13 |
+
 
 ## Step 4: Variant Calling (bcftools mpileup + call)
 
