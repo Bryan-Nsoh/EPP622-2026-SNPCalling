@@ -74,10 +74,11 @@ For each sample, report R1 + R2.
 
 | Sample | Total reads | Total bases | Quality issues? |
 | --- | --- | --- | --- |
-| A | \- | \- | \- |
-| B | \- | \- | \- |
-| C | \- | \- | \- |
-| D | \- | \- | \- |
+| A | 1609300 | 241395000 | no obvious issues |
+| B | 321860 | 48279000 | Too few unique reads comparatively |
+| C | 1609300 | 241395000 | Lots of overrepresented sequences perhaps polyG tails |
+| D | 1609300 | 241395000 | Generally very poor quality scores |
+
 
 ## Step 2: Read Trimming and Filtering (fastp)
 
