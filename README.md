@@ -780,8 +780,8 @@ For intermediary steps I would use multiqc and its html viewer to look at the da
 
 > What did the labs teach you that turned out to matter for evaluating the AI-generated code?
 
-AI written bash can be rather inscrutable especially when written for unfamiliar CLIs i think the biggest thing that helped me understand and evaluate the AI code better was familiarity with the CLIs frong macing worked with them myself. 
+AI written bash can be rather inscrutable especially when written for unfamiliar CLIs i think the biggest thing that helped me understand and evaluate the AI code better was familiarity with the CLIs from having worked with them myself. 
 
 > What is the value of learning about a computational genomics task before using AI for it — or is there none?
 
-Execution without understanding usually leads to alot of wasted effort and unnecessary confusion. AI tends to be helpful when you can ask very precise questions of it and have the ability to judge uts output and the only way to get to that level is to spend the time learning and practicing.
+Using AI for execution without understanding usually leads to alot of wasted effort and unnecessary confusion. AI tends to be helpful when you can ask very precise questions of it and have the ability to judge uts output and the only way to get to that level is to spend the time learning and practicing.
