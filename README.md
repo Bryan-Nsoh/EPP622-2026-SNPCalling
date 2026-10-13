@@ -703,8 +703,7 @@ Truth genotype: `0/1`. Raw call: `GT=0/1`, `QUAL=52.38`, `INFO/DP=12`, `INFO/MQ=
 
 **Explanation:**
 
-<!-- Add your explanation here. -->
-
+This is a case of False negative after overenthusiastic filtering. This sample clearly as a high read depth with the SNP appearing in a decent number of reads. The variant is correctly called without any filtering but was excluded because it did not meet the read mapping quality threshold of 40(INFO/MQ>=40)
 ### False negative 2
 
 | Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
@@ -717,7 +716,7 @@ Truth genotype: `0/1`. Raw call: absent.
 
 **Explanation:**
 
-<!-- Add your explanation here. -->
+Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in a single read. So there is weak support for the underlying allele. Not sure what could cause this perhaps more reads would help. Though you would think this many reads should be sufficient
 
 ### False positive 1
 
@@ -731,8 +730,7 @@ Called genotype: `1/1`. `QUAL=5.8`, `FORMAT/DP=1` (evaluator values). Truth vari
 
 **Explanation:**
 
-<!-- Add your explanation here. -->
-
+The extremely low read depth and poor quality QUAL=5.8 make this unlikely to be a SNP and in generally make any calling based on tis data highly uncertain. The cause of this false positive could largely be due to lack of filtering based on quality and read depth
 ### False positive 2
 
 | Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
@@ -745,7 +743,7 @@ Called genotype: `0/1`. `QUAL=3.7`, `FORMAT/DP=13` (evaluator values). Truth var
 
 **Explanation:**
 
-<!-- Add your explanation here. -->
+The ratio of alternative allele to the reference nucleotide is 3 to 10 this combined with the relatively low quality scores of QUAL=3.7 reduce the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this was wrongly called.
 
 
 
