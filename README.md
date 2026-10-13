@@ -254,13 +254,30 @@ Gentle: exclude variants with a QUAL less than 20 or less than 5 total read dept
 Stringent: exclude variants with a QUAL less than 30 or less than 10 total read depth across all samples or a site level mapping quality (root mean square) of less than 40
 
 ```bash
-#filtering gentle
-#filtering stringent
-```
+#!/usr/bin/env bash
+set -euo pipefail
 
-```bash
-# bcftools stats on gentle
-# bcftools stats on stringent
+mkdir -p "$RESULTS_DIR/05_filtering" "$RESULTS_DIR/05_multiqc"
+
+for sample in A B C D; do
+    bcftools view -v snps \
+        -i 'QUAL>=20 && INFO/DP>=5' \
+        "$RESULTS_DIR/04_variants/Sample_${sample}.vcf" \
+        -Ov -o "$RESULTS_DIR/05_filtering/Sample_${sample}.gentle.vcf"
+
+    # INFO/MQ is average mapping quality, not RMS
+    bcftools view -v snps \
+        -i 'QUAL>=30 && INFO/DP>=10 && INFO/MQ>=40' \
+        "$RESULTS_DIR/04_variants/Sample_${sample}.vcf" \
+        -Ov -o "$RESULTS_DIR/05_filtering/Sample_${sample}.stringent.vcf"
+
+    for filter in gentle stringent; do
+        bcftools stats "$RESULTS_DIR/05_filtering/Sample_${sample}.${filter}.vcf" \
+            > "$RESULTS_DIR/05_filtering/Sample_${sample}.${filter}.stats.txt"
+    done
+done
+
+multiqc "$RESULTS_DIR/05_filtering" -o "$RESULTS_DIR/05_multiqc" --force
 ```
  
 ### Results
@@ -300,7 +317,41 @@ python3 evaluate_snps_v4.py \
 ```
 
 ```
-code
+#!/usr/bin/env bash
+set -euo pipefail
+
+CHECK_DIR="/lustre/isaac24/proj/UTK0505/test2/check"
+RESULTS_DIR="/nfs/home/bnsoh/test2/results"
+
+mkdir -p "$RESULTS_DIR/06_evaluation"
+table="$RESULTS_DIR/06_evaluation/results.md"
+printf '| Sample | Filter | TP | FP | FN | Precision | Recall | F1 |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n' > "$table"
+
+for sample in A B C D; do
+    for filter in raw gentle stringent; do
+        if [[ "$filter" == raw ]]; then
+            calls="$RESULTS_DIR/04_variants/Sample_${sample}.vcf"
+        else
+            calls="$RESULTS_DIR/05_filtering/Sample_${sample}.${filter}.vcf"
+        fi
+
+        python3 "$CHECK_DIR/evaluate_snps_v4.py" \
+            --truth "$CHECK_DIR/truth_snps.vcf" \
+            --calls "$calls" \
+            --all-samples \
+            --tag "$filter" \
+            --outdir "$RESULTS_DIR/06_evaluation/Sample_${sample}.${filter}"
+        # dump the results into a convenient .md table
+        awk -F '\t' -v sample="$sample" -v filter="$filter" '
+            END {
+                if (filter == "stringent") filter = "strict"
+                printf "| %s | %s | %s | %s | %s | %s | %s | %s |\n", sample, filter, $7, $8, $9, $10, $11, $12
+            }' "$RESULTS_DIR/06_evaluation/Sample_${sample}.${filter}/summary_all_runs.tsv" >> "$table"
+    done
+done
+
+cat "$table"
+
 ```
 
 ## Directory structure
@@ -630,9 +681,73 @@ Minimum one paragraph each.
 
 > How did samples differ from each other in read count versus in read quality? Why does each matter for SNP calling?
 
+There generally didn't seem to be a correlation between read counts and quality. Sample B generally had very low read counts but relatively high quality scores whereas sample D had as high read counts as A and C but much lower quality. For SNP calling, having a minimum read counts are important to distinguish a potential SNP statistically from noise. Since any statistical procedure like the ones underlying SNP calling need a minimum number of samples regardless of quality to make a call. Although generally high quality reads may offset the minimum number of reads needed to confidently call a SNP. Judging from the final variant calling results though, read count seems much more impactful than read quality because the F1 scores of Sample D do not suffer much despite its generally low read quality. B on the other hand seems to have pretty low recall and thus F1 in spite of the higher quality of its relatively few reads.
+
+
 > What are the relative merits and drawbacks of filtering? Interpret the above chart in terms of the original quality issues, and how those yielded different outcomes. When is filtering a good idea vs when it is it a bad idea? Think specifically about false positives vs false negatives.
 
+The main effect of filtering seems to be to reduce the rate of False positives. Which is predicated on the presence of false positives in your data and the degree to which the filters capture them. Filtering may help for data with lots of false positives. However for test2 the low prevalence of false positives and tendency of the filtering algorithm to assign false negatives mean that filtering is ultimately detrimental in all cases. I'm not sure how one would know this or decide how/when to use filtering in the absence of true labels.
+
+
 > Pick **two false negatives** and **two false positives**, from any sample. For each, tell me the sample, tell me the chromosome and coordinate location, put in a screenshot of IGV or JBrowse, and explain the specific cause of the FN or FP call.
+
+### False negative 1
+
+| Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
+| --- | --- | --- | --- | --- |
+| A | stringent | I (`NC_001133.9`) | 205684 | T → C |
+
+Truth genotype: `0/1`. Raw call: `GT=0/1`, `QUAL=52.38`, `INFO/DP=12`, `INFO/MQ=23`. Stringent call: absent.
+
+![False negative 1: sample A, 205684](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/A_FN.png)
+
+**Explanation:**
+
+<!-- Add your explanation here. -->
+
+### False negative 2
+
+| Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
+| --- | --- | --- | --- | --- |
+| C | raw | I (`NC_001133.9`) | 160949 | G → A |
+
+Truth genotype: `0/1`. Raw call: absent.
+
+![False negative 2: sample C, 160949](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/C_FN.png)
+
+**Explanation:**
+
+<!-- Add your explanation here. -->
+
+### False positive 1
+
+| Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
+| --- | --- | --- | --- | --- |
+| B | raw | II (`NC_001134.8`) | 14817 | T → A |
+
+Called genotype: `1/1`. `QUAL=5.8`, `FORMAT/DP=1` (evaluator values). Truth variant: absent.
+
+![False positive 1: sample B, 14817](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/B_FP.png)
+
+**Explanation:**
+
+<!-- Add your explanation here. -->
+
+### False positive 2
+
+| Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
+| --- | --- | --- | --- | --- |
+| D | raw | III (`NC_001135.5`) | 66244 | T → G |
+
+Called genotype: `0/1`. `QUAL=3.7`, `FORMAT/DP=13` (evaluator values). Truth variant: absent.
+
+![False positive 2: sample D, 66244](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/D_FP.png)
+
+**Explanation:**
+
+<!-- Add your explanation here. -->
+
+
 
 ## AI Analysis - Pipeline Audit
 
