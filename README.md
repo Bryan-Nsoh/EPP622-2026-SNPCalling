@@ -751,20 +751,37 @@ The ratio of alternative allele to the reference nucleotide is 3 to 10 this comb
 
 This is an evaluation of the pipeline you generated at the beginning of the learning module. Provide full sentences and thoughtful rationale.
 
-Model used:
+Model used: OpenAI Codex, GPT 5.6 sol
 
-Date generated:
+Date generated: September 22, 2026
 
-Exact prompt:
+Exact prompt: Write me a complete short-read SNP calling pipeline for a haploid fungal genome, starting from paired FASTQ and ending at a filtered VCF.
+
 
 Minimum one paragraph each.
 
 > Three things it got right.
 
+- The full selection of tools neededto run the full pipeline
+- It considered reusability making use of variables to hold paths foldernames etc so the pipeline could be run by someone with a different setup
+- I noticed AIs always use `set -euo pipefail` at the start of every bash script. When i searched online i learned the command causes the entire pipeline to crash and print any error instead of proceeding with potentially erroneous outputs to the end. i think all bash pipelines should use this and have started using this myself.
+
 > Three things you don't understand and would want to learn more about before using. Or do you understand all of it? If so be ready to answer questions about it.
+
+- The AI used GATK-4 which is a genome analysis toolkit to index the reference genome, to call variants, mark PCR duplicates etc. i hadnt heard of this software before i guess its an alternative to the tools we use but given that we havent discussed GATK in class and i hadn't heard of it, every part of the pipeline hta tused it is harder to understand
+- Some of hte bash it used is a little too advanced for me for instance `RG="@RG\\tID:${SAMPLE}\\tSM:${SAMPLE}\\tPL:ILLUMINA\\tLB:${SAMPLE}_lib1\\tPU:${SAMPLE}_unit1"`. i could probably figure out what this does if i really tried but it would be really painful. There is also probably a more human legible way to acheove whatever is going on here
+- usage lifecycle of the pipeline could also be more well thought out managing and organizing the inputs/outputs appread to have recieved some thought but seems like a secondary concern. 
+
+These issues could all probabl resolved with a better prompt or more specific request but you'd need to know what to ask for in the first place which could be har dto do without having played with the tools yourself in some capacity.
 
 > How specifically would you assess the results of this pipeline for accuracy?
 
+For intermediary steps I would use multiqc and its html viewer to look at the data before and after filtering specifically looking for read depth phred scores and examining the effects of the thresholds used for filtering reads based on these measures. I would also reuse the python tool provided to obtain F1 scores and precision recall metrics for variant calling ideally running this against another pipeline i know and trust. If the F1 scores are good after a little tuning of the thresholds used for VCF filtering i would trust it more. 
+
 > What did the labs teach you that turned out to matter for evaluating the AI-generated code?
 
+AI written bash can be rather inscrutable especially when written for unfamiliar CLIs i think the biggest thing that helped me understand and evaluate the AI code better was familiarity with the CLIs frong macing worked with them myself. 
+
 > What is the value of learning about a computational genomics task before using AI for it — or is there none?
+
+Execution without understanding usually leads to alot of wasted effort and unnecessary confusion. AI tends to be helpful when you can ask very precise questions of it and have the ability to judge uts output and the only way to get to that level is to spend the time learning and practicing.
