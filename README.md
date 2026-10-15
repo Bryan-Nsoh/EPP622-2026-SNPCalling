@@ -686,8 +686,7 @@ There generally didn't seem to be a correlation between read counts and quality.
 
 > What are the relative merits and drawbacks of filtering? Interpret the above chart in terms of the original quality issues, and how those yielded different outcomes. When is filtering a good idea vs when it is it a bad idea? Think specifically about false positives vs false negatives.
 
-The main effect of filtering seems to be to reduce the rate of False positives. Which is predicated on the presence of false positives in your data and the degree to which the filters capture them. Filtering may help for data with lots of false positives. However for test2 the low prevalence of false positives and tendency of the filtering algorithm to assign false negatives mean that filtering is ultimately detrimental in all cases. I'm not sure how one would know this or decide how/when to use filtering in the absence of true labels.
-
+The main effect of filtering seems to be to reduce the rate of False positives. Which is predicated on the presence of false positives in your data and the degree to which the filters capture them. Filtering may help for data with lots of false positives. However for B the low prevalence of false positives and tendency of the filtering algorithm to overassign false negatives mean that filtering is ultimately detrimental in all cases. For samples with low read depth like B, the filtering thresholds remove what little signal there is whereas doing best effort calling on the poor data yields a good F1 score of 0.83. 
 
 > Pick **two false negatives** and **two false positives**, from any sample. For each, tell me the sample, tell me the chromosome and coordinate location, put in a screenshot of IGV or JBrowse, and explain the specific cause of the FN or FP call.
 
@@ -703,7 +702,8 @@ Truth genotype: `0/1`. Raw call: `GT=0/1`, `QUAL=52.38`, `INFO/DP=12`, `INFO/MQ=
 
 **Explanation:**
 
-This is a case of False negative after overenthusiastic filtering. This sample clearly as a high read depth with the SNP appearing in a decent number of reads. The variant is correctly called without any filtering but was excluded because it did not meet the read mapping quality threshold of 40(INFO/MQ>=40)
+This is a case of False negative after overenthusiastic filtering. This sample clearly as a high read depth with the SNP appearing in a decent number of reads. The variant is correctly called without any filtering but was excluded because it did not meet the read mapping quality threshold of 40(INFO/MQ>=40).
+
 ### False negative 2
 
 | Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
@@ -716,7 +716,7 @@ Truth genotype: `0/1`. Raw call: absent.
 
 **Explanation:**
 
-Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in a single read. So there is weak support for the underlying allele. Not sure what could cause this perhaps more reads would help. Though you would think this many reads should be sufficient
+Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in a single read. So there is weak support for the underlying allele. Not sure what could cause this perhaps more reads would help. Though you would think this many reads should be sufficient.
 
 ### False positive 1
 
@@ -730,7 +730,8 @@ Called genotype: `1/1`. `QUAL=5.8`, `FORMAT/DP=1` (evaluator values). Truth vari
 
 **Explanation:**
 
-The extremely low read depth and poor quality QUAL=5.8 make this unlikely to be a SNP and in generally make any calling based on tis data highly uncertain. The cause of this false positive could largely be due to lack of filtering based on quality and read depth
+The extremely low read depth and poor quality QUAL=5.8 make this unlikely to be a SNP and in general make any calling based on this data highly uncertain. The cause of this false positive could largely be due to lack of filtering based on quality and read depth
+
 ### False positive 2
 
 | Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
@@ -743,7 +744,7 @@ Called genotype: `0/1`. `QUAL=3.7`, `FORMAT/DP=13` (evaluator values). Truth var
 
 **Explanation:**
 
-The ratio of alternative allele to the reference nucleotide is 3 to 10 this combined with the relatively low quality scores of QUAL=3.7 reduce the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this was wrongly called.
+The ratio of alternative allele to the reference nucleotide is 3 to 10. this combined with the relatively low quality scores of QUAL=3.7 reduce the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this was wrongly called.
 
 
 
@@ -762,17 +763,17 @@ Minimum one paragraph each.
 
 > Three things it got right.
 
-- The full selection of tools neededto run the full pipeline
-- It considered reusability making use of variables to hold paths foldernames etc so the pipeline could be run by someone with a different setup
-- I noticed AIs always use `set -euo pipefail` at the start of every bash script. When i searched online i learned the command causes the entire pipeline to crash and print any error instead of proceeding with potentially erroneous outputs to the end. i think all bash pipelines should use this and have started using this myself.
+- The full selection of tools needed to run the full pipeline
+- It considered reusability, making use of variables to hold paths, foldernames etc so the pipeline could be run by someone with a different setup with a little tweaking
+- I noticed AIs always use `set -euo pipefail` at the start of every bash script. When i searched online i learned the command causes the entire pipeline to crash and print any error instead of failing silently or inscrutably then proceeding with potentially erroneous outputs to the end. Errors without error messages are the most misleading and the absolute worst to debug. I think all bash scripts should use this and have started using this myself.
 
 > Three things you don't understand and would want to learn more about before using. Or do you understand all of it? If so be ready to answer questions about it.
 
-- The AI used GATK-4 which is a genome analysis toolkit to index the reference genome, to call variants, mark PCR duplicates etc. i hadnt heard of this software before i guess its an alternative to the tools we use but given that we havent discussed GATK in class and i hadn't heard of it, every part of the pipeline hta tused it is harder to understand
-- Some of hte bash it used is a little too advanced for me for instance `RG="@RG\\tID:${SAMPLE}\\tSM:${SAMPLE}\\tPL:ILLUMINA\\tLB:${SAMPLE}_lib1\\tPU:${SAMPLE}_unit1"`. i could probably figure out what this does if i really tried but it would be really painful. There is also probably a more human legible way to acheove whatever is going on here
-- usage lifecycle of the pipeline could also be more well thought out managing and organizing the inputs/outputs appread to have recieved some thought but seems like a secondary concern. 
+- The AI used GATK-4 which is a genome analysis toolkit to index the reference genome, to call variants, mark PCR duplicates etc. i hadnt heard of this software before i guess its an alternative to the tools we use but given that we havent discussed GATK in class and i hadn't heard of it, every part of the pipeline that used GATK-4 is difficult to understand
+- Some of the bash the AI used is a little too advanced/opaque for me for instance `RG="@RG\\tID:${SAMPLE}\\tSM:${SAMPLE}\\tPL:ILLUMINA\\tLB:${SAMPLE}_lib1\\tPU:${SAMPLE}_unit1"`. i could probably figure out what this does if i really tried but it would be painful. There is almost certainly a more human-legible way to achieve whatever is going on here.
+- Usage lifecycle of the pipeline could also be more well thought out. Managing and organizing the inputs/outputs appeared to have received some thought but seems like a secondary concern. 
 
-These issues could all probabl resolved with a better prompt or more specific request but you'd need to know what to ask for in the first place which could be har dto do without having played with the tools yourself in some capacity.
+These issues could all be resolved with a better prompt or more specific requests, but you wouldn't know what to ask for in the first place if you didn't understand the tools and their purpose
 
 > How specifically would you assess the results of this pipeline for accuracy?
 
@@ -780,8 +781,8 @@ For intermediary steps I would use multiqc and its html viewer to look at the da
 
 > What did the labs teach you that turned out to matter for evaluating the AI-generated code?
 
-AI written bash can be rather inscrutable especially when written for unfamiliar CLIs i think the biggest thing that helped me understand and evaluate the AI code better was familiarity with the CLIs from having worked with them myself. 
+AI written bash can be rather inscrutable especially when written for unfamiliar CLIs. What helped me understand and evaluate the AI code better was familiarity with the CLIs from having worked with them myself.
 
 > What is the value of learning about a computational genomics task before using AI for it — or is there none?
 
-Using AI for execution without understanding usually leads to alot of wasted effort and unnecessary confusion. AI tends to be helpful when you can ask very precise questions of it and have the ability to judge uts output and the only way to get to that level is to spend the time learning and practicing.
+Using AI for execution without understanding could lead to alot of wasted effort and unnecessary confusion. AI tends to be helpful when you can ask very precise questions of it and have the ability to judge its output and the only way to get to that level is to spend the time learning and practicing.
