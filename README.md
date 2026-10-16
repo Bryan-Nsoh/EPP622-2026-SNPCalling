@@ -90,8 +90,8 @@ For each sample, report R1 + R2.
 | Sample | Total reads | Total bases | Quality issues? |
 | --- | --- | --- | --- |
 | A | 1609300 | 241395000 | no obvious issues |
-| B | 321860 | 48279000 | Too few unique reads comparatively |
-| C | 1609300 | 241395000 | Lots of overrepresented sequences perhaps polyG tails |
+| B | 321860 | 48279000 | Too few reads comparatively; low coverage. |
+| C | 1609300 | 241395000 | Lots of overrepresented sequences, adapter contamination and polyG tails. |
 | D | 1609300 | 241395000 | Generally very poor quality scores |
 
 
@@ -687,18 +687,18 @@ Minimum one paragraph each.
 
 > How did samples differ from each other in read count versus in read quality? Why does each matter for SNP calling?
 
-There generally didn't seem to be a correlation between read counts and quality. Sample B generally had very low read counts but relatively high quality scores whereas sample D had as high read counts as A and C but much lower quality. For SNP calling, having a minimum read counts are important to distinguish a potential SNP statistically from noise. Since any statistical procedure like the ones underlying SNP calling need a minimum number of samples regardless of quality to make a call. Although generally high quality reads may offset the minimum number of reads needed to confidently call a SNP. Judging from the final variant calling results though, read count seems much more impactful than read quality because the F1 scores of Sample D do not suffer much despite its generally low read quality. B on the other hand seems to have pretty low recall and thus F1 in spite of the higher quality of its relatively few reads.
+There generally didn't seem to be a correlation between read counts and quality. Sample B generally had very low read counts but relatively high quality scores whereas sample D had as high read counts as A and C but much lower quality. For SNP calling, having a minimum read counts are important to distinguish a potential SNP statistically from noise. Since any statistical procedure like the ones underlying SNP calling need a minimum number of samples regardless of quality to make a call. Although generally high quality reads may offset the minimum number of reads needed to confidently call a SNP. Judging from the final variant calling results though, read count seems more impactful than read quality in these samples because the F1 scores of Sample D do not suffer much despite its generally low read quality. B on the other hand seems to have pretty low recall and thus F1 in spite of the higher quality of its relatively few reads.
 
 
 > What are the relative merits and drawbacks of filtering? Interpret the above chart in terms of the original quality issues, and how those yielded different outcomes. When is filtering a good idea vs when it is it a bad idea? Think specifically about false positives vs false negatives.
 
-The main effect of filtering seems to be to reduce the rate of False positives. Which is predicated on the presence of false positives in your data and the degree to which the filters capture them. Filtering may help for data with lots of false positives. However for B the low prevalence of false positives and tendency of the filtering algorithm to overassign false negatives mean that filtering is ultimately detrimental in all cases. For samples with low read depth like B, the filtering thresholds remove what little signal there is whereas doing best effort calling on the poor data yields a good F1 score of 0.83. 
+The main effect of filtering seems to be to reduce the rate of False positives. Which is predicated on the presence of false positives in your data and the degree to which the filters capture them. Filtering may help for data with lots of false positives. However for B the low prevalence of false positives and tendency of stringent filtering to increase false negatives mean that stringent filtering is ultimately detrimental. Gentle filtering slightly improves F1 by removing 22 false positives while losing only four true positives. For samples with low read depth like B, stringent filtering still removes some true signal, whereas joint calling on the low coverage data yields a good raw F1 score of 0.9369. The depth thresholds now use total read depth across all samples rather than B alone. 
 
 > Pick **two false negatives** and **two false positives**, from any sample. For each, tell me the sample, tell me the chromosome and coordinate location, put in a screenshot of IGV or JBrowse, and explain the specific cause of the FN or FP call.
 
 | Example data source | Calling method |
 | --- | --- |
-| `archive/before_pe_adapter_20261015_132613/` | Original separate-sample calling |
+| `results/04_variants/joint.vcf` | Corrected joint calling |
 
 ### False negative 1
 
@@ -706,13 +706,13 @@ The main effect of filtering seems to be to reduce the rate of False positives. 
 | --- | --- | --- | --- | --- |
 | A | stringent | I (`NC_001133.9`) | 205684 | T → C |
 
-Truth genotype: `0/1`. Raw call: `GT=0/1`, `QUAL=52.38`, `INFO/DP=12`, `INFO/MQ=23`. Stringent call: absent.
+Truth genotype: `0/1`. Raw call: `GT=0/1`, `QUAL=270.324`, `INFO/DP=43`, `INFO/MQ=28`, `FORMAT/DP=12`. Stringent call: absent.
 
-![False negative 1: sample A, 205684](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/A_FN.png)
+![False negative 1: sample A, 205684](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/A_FN_joint.png)
 
 **Explanation:**
 
-This is a case of False negative after overenthusiastic filtering. This sample clearly as a high read depth with the SNP appearing in a decent number of reads. The variant is correctly called without any filtering but was excluded because it did not meet the read mapping quality threshold of 40(INFO/MQ>=40).
+This is a case of False negative after overenthusiastic filtering. This sample clearly has adequate read depth with the SNP appearing in a decent number of reads. The variant is correctly called without any filtering but was excluded because it did not meet the read mapping quality threshold of 40(INFO/MQ>=40).
 
 ### False negative 2
 
@@ -720,41 +720,41 @@ This is a case of False negative after overenthusiastic filtering. This sample c
 | --- | --- | --- | --- | --- |
 | C | raw | I (`NC_001133.9`) | 160949 | G → A |
 
-Truth genotype: `0/1`. Raw call: absent.
+Truth genotype: `0/1`. Raw call: absent. Unfiltered pileup: 19 covering reads, 16 reference G and 3 alternate A.
 
-![False negative 2: sample C, 160949](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/C_FN.png)
+![False negative 2: sample C, 160949](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/C_FN_joint.png)
 
 **Explanation:**
 
-Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in a single read. So there is weak support for the underlying allele. Not sure what could cause this perhaps more reads would help. Though you would think this many reads should be sufficient.
+Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in three of nineteen reads. So there is weak support for the underlying allele. Not sure what could cause this perhaps more reads would help. Though you would think this many reads should be sufficient.
 
 ### False positive 1
 
 | Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
 | --- | --- | --- | --- | --- |
-| B | raw | II (`NC_001134.8`) | 14817 | T → A |
+| B | raw | IV (`NC_001136.10`) | 1072495 | A → T |
 
-Called genotype: `1/1`. `QUAL=5.8`, `FORMAT/DP=1` (evaluator values). Truth variant: absent.
+Called genotype: `0/1`. Site `QUAL=4.15124`, `INFO/DP=65`; sample `FORMAT/DP=1`, `FORMAT/AD=0,1`. Truth variant: absent.
 
-![False positive 1: sample B, 14817](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/B_FP.png)
+![False positive 1: sample B, 1072495](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/B_FP_joint.png)
 
 **Explanation:**
 
-The extremely low read depth and poor quality QUAL=5.8 make this unlikely to be a SNP and in general make any calling based on this data highly uncertain. The cause of this false positive could largely be due to lack of filtering based on quality and read depth
+The extremely low read depth in B and low variant confidence QUAL=4.15 make this unlikely to be a SNP and in general make any calling based on this data highly uncertain. The retention of this false positive could largely be due to lack of additional filtering based on quality and read depth. The screenshot alone does not establish the source of the erroneous base.
 
 ### False positive 2
 
 | Sample | Filter | Chromosome | Position (1-based) | REF → ALT |
 | --- | --- | --- | --- | --- |
-| D | raw | III (`NC_001135.5`) | 66244 | T → G |
+| D | raw | IV (`NC_001136.10`) | 95711 | A → T |
 
-Called genotype: `0/1`. `QUAL=3.7`, `FORMAT/DP=13` (evaluator values). Truth variant: absent.
+Called genotype: `0/1`. Site `QUAL=8.53828`, `INFO/DP=51`; sample `FORMAT/DP=17`, `FORMAT/AD=11,5`. Truth variant: absent.
 
-![False positive 2: sample D, 66244](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/D_FP.png)
+![False positive 2: sample D, 95711](https://raw.githubusercontent.com/Bryan-Nsoh/EPP622-2026-SNPCalling/main/images/D_FP_joint.png)
 
 **Explanation:**
 
-The ratio of alternative allele to the reference nucleotide is 3 to 10. this combined with the relatively low quality scores of QUAL=3.7 reduce the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this was wrongly called.
+The alternative allele is supported by a minority of the reads. This combined with the relatively low variant confidence of QUAL=8.54 reduces the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this false positive was retained. The screenshot alone does not establish the source of the erroneous alternate bases.
 
 
 
