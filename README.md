@@ -726,7 +726,7 @@ Truth genotype: `0/1`. Raw call: absent. Unfiltered pileup: 19 covering reads, 1
 
 **Explanation:**
 
-Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in three of nineteen reads. So there is weak support for the underlying allele. Not sure what could cause this perhaps more reads would help. Though you would think this many reads should be sufficient.
+Unlike the case above which has the alternative allele showing up in many reads the alternative allele, A here only shows up in three of nineteen reads. So there is weak support for the underlying allele. It could be that there is too little support for the alternate allele to confidently distinguish it from error.
 
 ### False positive 1
 
@@ -754,7 +754,7 @@ Called genotype: `0/1`. Site `QUAL=8.53828`, `INFO/DP=51`; sample `FORMAT/DP=17`
 
 **Explanation:**
 
-The alternative allele is supported by a minority of the reads. This combined with the relatively low variant confidence of QUAL=8.54 reduces the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this false positive was retained. The screenshot alone does not establish the source of the erroneous alternate bases.
+The alternative allele is supported by a minority of the reads. This combined with the relatively low variant confidence of QUAL=8.54 reduces the likelihood of this being a SNP. Since the raw calls lacked additional quality filtering however this false positive was retained. The screenshot alone does not establish the source of the erroneous alternate bases. Sequencing errors or poor alignment could cause alternate bases which are not SNPs.
 
 
 
