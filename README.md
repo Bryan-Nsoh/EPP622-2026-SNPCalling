@@ -121,6 +121,7 @@ for sample in A B C D; do
         -o "$RESULTS_DIR/02_fastp/Sample_${sample}_R1.trimmed.fastq.gz" \
         -O "$RESULTS_DIR/02_fastp/Sample_${sample}_R2.trimmed.fastq.gz" \
         --trim_poly_g \
+        --detect_adapter_for_pe \
         --html "$RESULTS_DIR/02_fastp/Sample_${sample}.fastp.html" \
         --json "$RESULTS_DIR/02_fastp/Sample_${sample}.fastp.json"
 done
@@ -130,7 +131,7 @@ fastqc "$RESULTS_DIR"/02_fastp/*.trimmed.fastq.gz \
     -o "$RESULTS_DIR/02_fastp_fastqc"
 
 multiqc "$RESULTS_DIR/02_fastp_fastqc" \
-    -o "$RESULTS_DIR/02_fastp_multiqc"
+    -o "$RESULTS_DIR/02_fastp_multiqc" --force
 
 ```
 
@@ -155,7 +156,7 @@ For each sample, report R1 + R2. Use the reference genome size above to calculat
 | --- | --- | --- | --- | --- |
 | A | 1609300 | 1609300 | 150.0 | 150.0 |
 | B | 321860 | 321860 | 150.0 | 150.0 |
-| C | 1609300 | 1609300 | 150.0 | 143.8 |
+| C | 1609300 | 1577258 | 150.0 | 125.9 |
 | D | 1609300 | 1609300 | 150.0 | 150.0 |
 
 
@@ -179,20 +180,30 @@ for sample in A B C D; do
         "$RESULTS_DIR/02_fastp/Sample_${sample}_R2.trimmed.fastq.gz" \
         > "$RESULTS_DIR/03_alignment/Sample_${sample}.sam"
 
-    # then convert sam to sorted BAM and sort by reference position
+    # Then convert sam to sorted BAM and sort by reference position
     samtools sort \
         -o "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" \
         "$RESULTS_DIR/03_alignment/Sample_${sample}.sam"
 
-    # index the BAM for access by genomic region
+    # Index the BAM for access by genomic region
     samtools index "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam"
 
-    # summarize alignment counts
+    # Summarize alignment counts
     samtools flagstat "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" \
         > "$RESULTS_DIR/03_alignment/Sample_${sample}.flagstat.txt"
 done
 
-multiqc "$RESULTS_DIR/03_alignment" -o "$RESULTS_DIR/03_multiqc"
+# Calculate mean depth across all reference positions, including uncovered bases
+printf '# plot_type: table\n# section_name: Mean depth\nSample\tMean depth\n' \
+    > "$RESULTS_DIR/03_alignment/mean_depth_mqc.tsv"
+for sample in A B C D; do
+    samtools depth -aa "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" |
+        awk -v sample="$sample" '{ total += $3; positions++ }
+            END { if (!positions) exit 1; printf "Sample_%s\t%.2f\n", sample, total / positions }' \
+        >> "$RESULTS_DIR/03_alignment/mean_depth_mqc.tsv"
+done
+
+multiqc "$RESULTS_DIR/03_alignment" -o "$RESULTS_DIR/03_multiqc" --force
 
 ```
 
@@ -203,10 +214,10 @@ MultiQC report path and name: `/nfs/home/bnsoh/test2/results/03_multiqc/multiqc_
 
 | Sample | % mapped | % properly paired | Mean depth |
 | --- | --- | --- | --- |
-| A | 100.0% | 100.0% | 20.00 |
-| B | 100.0% | 100.0% | 4.00 |
-| C | 98.0% | 98.0% | 16.46 |
-| D | 100.0% | 100.0% | 19.13 |
+| A | 100.00% | 100.00% | 20.00 |
+| B | 100.00% | 100.00% | 4.00 |
+| C | 100.00% | 100.00% | 16.44 |
+| D | 100.00% | 100.00% | 19.13 |
 
 
 ## Step 4: Variant Calling (bcftools mpileup + call)
@@ -221,20 +232,28 @@ set -euo pipefail
 
 mkdir -p "$RESULTS_DIR/04_variants" "$RESULTS_DIR/04_multiqc"
 
-for sample in A B C D; do
-    bcftools mpileup \
-        -f "$REFERENCE_DIR/sacCer3.fa" \
-        -a FORMAT/DP,FORMAT/AD \
-        -Ou \
-        "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" |
-    bcftools call \
-        -m -v \
-        -Ov \
-        -o "$RESULTS_DIR/04_variants/Sample_${sample}.vcf"
-    bcftools stats "$RESULTS_DIR/04_variants/Sample_${sample}.vcf" \
-        > "$RESULTS_DIR/04_variants/Sample_${sample}.stats.txt"
-done
+# Call all four samples together
+bcftools mpileup \
+    -f "$REFERENCE_DIR/sacCer3.fa" \
+    -a FORMAT/DP,FORMAT/AD \
+    -Ou \
+    "$RESULTS_DIR"/03_alignment/Sample_{A,B,C,D}.sorted.bam |
+bcftools call -m -v -Ov \
+    -o "$RESULTS_DIR/04_variants/joint.unnamed.vcf"
 
+# Replace BAM-path sample names with Sample_A through Sample_D
+for sample in A B C D; do
+    printf '%s Sample_%s\n' "$RESULTS_DIR/03_alignment/Sample_${sample}.sorted.bam" "$sample"
+done > "$RESULTS_DIR/04_variants/sample_names.txt"
+bcftools reheader -s "$RESULTS_DIR/04_variants/sample_names.txt" \
+    "$RESULTS_DIR/04_variants/joint.unnamed.vcf" \
+    -o "$RESULTS_DIR/04_variants/joint.named.vcf"
+bcftools view -v snps "$RESULTS_DIR/04_variants/joint.named.vcf" \
+    -Ov -o "$RESULTS_DIR/04_variants/joint.vcf"
+rm "$RESULTS_DIR/04_variants/joint.unnamed.vcf" "$RESULTS_DIR/04_variants/joint.named.vcf"
+
+bcftools stats -s - "$RESULTS_DIR/04_variants/joint.vcf" \
+    > "$RESULTS_DIR/04_variants/joint.stats.txt"
 multiqc "$RESULTS_DIR/04_variants" -o "$RESULTS_DIR/04_multiqc" --force
 
 ```
@@ -242,6 +261,10 @@ multiqc "$RESULTS_DIR/04_variants" -o "$RESULTS_DIR/04_multiqc" --force
 ### Results
 
 bcftools stats report path and name: `/nfs/home/bnsoh/test2/results/04_multiqc/multiqc_report.html`
+
+| Stats file | Path |
+| --- | --- |
+| raw | `/nfs/home/bnsoh/test2/results/04_variants/joint.stats.txt` |
 
 ## Step 5: Filtering (bcftools filter)
 
@@ -259,25 +282,23 @@ set -euo pipefail
 
 mkdir -p "$RESULTS_DIR/05_filtering" "$RESULTS_DIR/05_multiqc"
 
-for sample in A B C D; do
-    bcftools view -v snps \
-        -i 'QUAL>=20 && INFO/DP>=5' \
-        "$RESULTS_DIR/04_variants/Sample_${sample}.vcf" \
-        -Ov -o "$RESULTS_DIR/05_filtering/Sample_${sample}.gentle.vcf"
+# Filter shared sites using total depth across all samples
+bcftools filter -i 'QUAL>=20 && INFO/DP>=5' \
+    "$RESULTS_DIR/04_variants/joint.vcf" \
+    -Ov -o "$RESULTS_DIR/05_filtering/joint.gentle.vcf"
 
-    # INFO/MQ is average mapping quality, not RMS
-    bcftools view -v snps \
-        -i 'QUAL>=30 && INFO/DP>=10 && INFO/MQ>=40' \
-        "$RESULTS_DIR/04_variants/Sample_${sample}.vcf" \
-        -Ov -o "$RESULTS_DIR/05_filtering/Sample_${sample}.stringent.vcf"
+# INFO/MQ is average mapping quality, not RMS
+bcftools filter -i 'QUAL>=30 && INFO/DP>=10 && INFO/MQ>=40' \
+    "$RESULTS_DIR/04_variants/joint.vcf" \
+    -Ov -o "$RESULTS_DIR/05_filtering/joint.stringent.vcf"
 
-    for filter in gentle stringent; do
-        bcftools stats "$RESULTS_DIR/05_filtering/Sample_${sample}.${filter}.vcf" \
-            > "$RESULTS_DIR/05_filtering/Sample_${sample}.${filter}.stats.txt"
-    done
+for filter in gentle stringent; do
+    bcftools stats -s - "$RESULTS_DIR/05_filtering/joint.${filter}.vcf" \
+        > "$RESULTS_DIR/05_filtering/joint.${filter}.stats.txt"
 done
 
 multiqc "$RESULTS_DIR/05_filtering" -o "$RESULTS_DIR/05_multiqc" --force
+
 ```
  
 ### Results
@@ -286,20 +307,16 @@ bcftools stats report path and name for gentle filtering: `/nfs/home/bnsoh/test2
 
 bcftools stats report path and name: for stringent filtering: `/nfs/home/bnsoh/test2/results/05_multiqc/multiqc_report.html`. I placed both reports in one file.
 
+| Stats file | Path |
+| --- | --- |
+| gentle | `/nfs/home/bnsoh/test2/results/05_filtering/joint.gentle.stats.txt` |
+| stringent | `/nfs/home/bnsoh/test2/results/05_filtering/joint.stringent.stats.txt` |
+
 | VCF | number of SNPs |
 | --- | --- |
-| A raw | 4839 |
-| A gentle | 4825 |
-| A stringent | 4704 |
-| B raw | 3930 |
-| B gentle | 1524 |
-| B stringent | 54 |
-| C raw | 4819 |
-| C gentle | 4779 |
-| C stringent | 4525 |
-| D raw | 4739 |
-| D gentle | 4492 |
-| D stringent | 4208 |
+| raw | 4898 |
+| gentle | 4862 |
+| stringent | 4749 |
 
 
 ## Step 6: Evaluation Against the Truth Set
@@ -330,16 +347,19 @@ printf '| Sample | Filter | TP | FP | FN | Precision | Recall | F1 |\n| --- | --
 for sample in A B C D; do
     for filter in raw gentle stringent; do
         if [[ "$filter" == raw ]]; then
-            calls="$RESULTS_DIR/04_variants/Sample_${sample}.vcf"
+            calls="$RESULTS_DIR/04_variants/joint.vcf"
         else
-            calls="$RESULTS_DIR/05_filtering/Sample_${sample}.${filter}.vcf"
+            calls="$RESULTS_DIR/05_filtering/joint.${filter}.vcf"
         fi
 
+        mkdir -p "$RESULTS_DIR/06_evaluation/Sample_${sample}.${filter}"
+        rm -f "$RESULTS_DIR/06_evaluation/Sample_${sample}.${filter}/summary_all_runs.tsv"
         python3 "$CHECK_DIR/evaluate_snps_v4.py" \
             --truth "$CHECK_DIR/truth_snps.vcf" \
             --calls "$calls" \
-            --all-samples \
+            --sample "Sample_${sample}" \
             --tag "$filter" \
+            --depth-vcf "$RESULTS_DIR/04_variants/joint.vcf" \
             --outdir "$RESULTS_DIR/06_evaluation/Sample_${sample}.${filter}"
         # dump the results into a convenient .md table
         awk -F '\t' -v sample="$sample" -v filter="$filter" '
@@ -359,7 +379,9 @@ cat "$table"
 From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory structure (paste the output of: `tree .`):
 
 ```
+$ tree -I archive
 .
+├── adapter_rerun.log
 ├── reads
 │   ├── Sample_A_R1.fastq.gz -> /lustre/isaac24/proj/UTK0505/test2/reads/Sample_A_R1.fastq.gz
 │   ├── Sample_A_R2.fastq.gz -> /lustre/isaac24/proj/UTK0505/test2/reads/Sample_A_R2.fastq.gz
@@ -456,7 +478,6 @@ From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory s
 │   │   ├── multiqc_data
 │   │   │   ├── fastqc-status-check-heatmap.txt
 │   │   │   ├── fastqc_adapter_content_plot.txt
-│   │   │   ├── fastqc_overrepresented_sequences_plot.txt
 │   │   │   ├── fastqc_per_base_n_content_plot.txt
 │   │   │   ├── fastqc_per_base_sequence_quality_plot.txt
 │   │   │   ├── fastqc_per_sequence_gc_content_plot_Counts.txt
@@ -465,7 +486,6 @@ From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory s
 │   │   │   ├── fastqc_sequence_counts_plot.txt
 │   │   │   ├── fastqc_sequence_duplication_levels_plot.txt
 │   │   │   ├── fastqc_sequence_length_distribution_plot.txt
-│   │   │   ├── fastqc_top_overrepresented_sequences_table.txt
 │   │   │   ├── llms-full.txt
 │   │   │   ├── multiqc.log
 │   │   │   ├── multiqc.parquet
@@ -510,7 +530,11 @@ From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory s
 │   │   └── multiqc_report.html
 │   ├── 04_multiqc
 │   │   ├── multiqc_data
+│   │   │   ├── bcftools-stats-sequencing-depth.txt
+│   │   │   ├── bcftools-stats-singletons.txt
+│   │   │   ├── bcftools-stats-sites.txt
 │   │   │   ├── bcftools-stats-subtypes.txt
+│   │   │   ├── bcftools-stats-tstv.txt
 │   │   │   ├── bcftools_stats_indel-lengths.txt
 │   │   │   ├── bcftools_stats_variant_depths.txt
 │   │   │   ├── bcftools_stats_vqc_Count_Indels.txt
@@ -528,34 +552,25 @@ From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory s
 │   │   │   └── multiqc_sources.txt
 │   │   └── multiqc_report.html
 │   ├── 04_variants
-│   │   ├── Sample_A.stats.txt
-│   │   ├── Sample_A.vcf
-│   │   ├── Sample_B.stats.txt
-│   │   ├── Sample_B.vcf
-│   │   ├── Sample_C.stats.txt
-│   │   ├── Sample_C.vcf
-│   │   ├── Sample_D.stats.txt
-│   │   └── Sample_D.vcf
+│   │   ├── joint.stats.txt
+│   │   ├── joint.vcf
+│   │   └── sample_names.txt
 │   ├── 05_filtering
-│   │   ├── Sample_A.gentle.stats.txt
-│   │   ├── Sample_A.gentle.vcf
-│   │   ├── Sample_A.stringent.stats.txt
-│   │   ├── Sample_A.stringent.vcf
-│   │   ├── Sample_B.gentle.stats.txt
-│   │   ├── Sample_B.gentle.vcf
-│   │   ├── Sample_B.stringent.stats.txt
-│   │   ├── Sample_B.stringent.vcf
-│   │   ├── Sample_C.gentle.stats.txt
-│   │   ├── Sample_C.gentle.vcf
-│   │   ├── Sample_C.stringent.stats.txt
-│   │   ├── Sample_C.stringent.vcf
-│   │   ├── Sample_D.gentle.stats.txt
-│   │   ├── Sample_D.gentle.vcf
-│   │   ├── Sample_D.stringent.stats.txt
-│   │   └── Sample_D.stringent.vcf
+│   │   ├── joint.gentle.stats.txt
+│   │   ├── joint.gentle.vcf
+│   │   ├── joint.stringent.stats.txt
+│   │   └── joint.stringent.vcf
 │   ├── 05_multiqc
 │   │   ├── multiqc_data
+│   │   │   ├── bcftools-stats-sequencing-depth_joint_gentle.txt
+│   │   │   ├── bcftools-stats-sequencing-depth_joint_stringent.txt
+│   │   │   ├── bcftools-stats-singletons_joint_gentle.txt
+│   │   │   ├── bcftools-stats-singletons_joint_stringent.txt
+│   │   │   ├── bcftools-stats-sites_joint_gentle.txt
+│   │   │   ├── bcftools-stats-sites_joint_stringent.txt
 │   │   │   ├── bcftools-stats-subtypes.txt
+│   │   │   ├── bcftools-stats-tstv_joint_gentle.txt
+│   │   │   ├── bcftools-stats-tstv_joint_stringent.txt
 │   │   │   ├── bcftools_stats_indel-lengths.txt
 │   │   │   ├── bcftools_stats_variant_depths.txt
 │   │   │   ├── bcftools_stats_vqc_Count_Indels.txt
@@ -577,73 +592,61 @@ From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory s
 │       │   ├── Sample_A_gentle_false_negatives.tsv
 │       │   ├── Sample_A_gentle_false_positives.tsv
 │       │   ├── Sample_A_gentle_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_A.raw
 │       │   ├── Sample_A_raw_false_negatives.tsv
 │       │   ├── Sample_A_raw_false_positives.tsv
 │       │   ├── Sample_A_raw_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_A.stringent
 │       │   ├── Sample_A_stringent_false_negatives.tsv
 │       │   ├── Sample_A_stringent_false_positives.tsv
 │       │   ├── Sample_A_stringent_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_B.gentle
 │       │   ├── Sample_B_gentle_false_negatives.tsv
 │       │   ├── Sample_B_gentle_false_positives.tsv
 │       │   ├── Sample_B_gentle_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_B.raw
 │       │   ├── Sample_B_raw_false_negatives.tsv
 │       │   ├── Sample_B_raw_false_positives.tsv
 │       │   ├── Sample_B_raw_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_B.stringent
 │       │   ├── Sample_B_stringent_false_negatives.tsv
 │       │   ├── Sample_B_stringent_false_positives.tsv
 │       │   ├── Sample_B_stringent_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_C.gentle
 │       │   ├── Sample_C_gentle_false_negatives.tsv
 │       │   ├── Sample_C_gentle_false_positives.tsv
 │       │   ├── Sample_C_gentle_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_C.raw
 │       │   ├── Sample_C_raw_false_negatives.tsv
 │       │   ├── Sample_C_raw_false_positives.tsv
 │       │   ├── Sample_C_raw_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_C.stringent
 │       │   ├── Sample_C_stringent_false_negatives.tsv
 │       │   ├── Sample_C_stringent_false_positives.tsv
 │       │   ├── Sample_C_stringent_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_D.gentle
 │       │   ├── Sample_D_gentle_false_negatives.tsv
 │       │   ├── Sample_D_gentle_false_positives.tsv
 │       │   ├── Sample_D_gentle_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_D.raw
 │       │   ├── Sample_D_raw_false_negatives.tsv
 │       │   ├── Sample_D_raw_false_positives.tsv
 │       │   ├── Sample_D_raw_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       ├── Sample_D.stringent
 │       │   ├── Sample_D_stringent_false_negatives.tsv
 │       │   ├── Sample_D_stringent_false_positives.tsv
 │       │   ├── Sample_D_stringent_genotype_confusion.tsv
-│       │   ├── evaluation.log
 │       │   └── summary_all_runs.tsv
 │       └── results.md
 └── scripts
@@ -654,25 +657,28 @@ From `/nfs/home/bnsoh/test2` that holds all my analysis, here is the directory s
     ├── 03_bwamem_multiqc.sh
     ├── 04_variant_calling.sh
     ├── 05_filtering.sh
-    └── 06_evaluation.sh
+    ├── 06_evaluation.sh
+    └── rerun_adapter_correction.sh
+
+33 directories, 245 files
 ```
 
 ### Results
 
 | Sample | Filter | TP | FP | FN | Precision | Recall | F1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A | raw | 4839 | 0 | 161 | 1.0000 | 0.9678 | 0.9836 |
-| A | gentle | 4825 | 0 | 175 | 1.0000 | 0.9650 | 0.9822 |
-| A | strict | 4704 | 0 | 296 | 1.0000 | 0.9408 | 0.9695 |
-| B | raw | 3728 | 202 | 1272 | 0.9486 | 0.7456 | 0.8349 |
-| B | gentle | 1524 | 0 | 3476 | 1.0000 | 0.3048 | 0.4672 |
-| B | strict | 54 | 0 | 4946 | 1.0000 | 0.0108 | 0.0214 |
-| C | raw | 4819 | 0 | 181 | 1.0000 | 0.9638 | 0.9816 |
-| C | gentle | 4779 | 0 | 221 | 1.0000 | 0.9558 | 0.9774 |
-| C | strict | 4525 | 0 | 475 | 1.0000 | 0.9050 | 0.9501 |
-| D | raw | 4718 | 21 | 282 | 0.9956 | 0.9436 | 0.9689 |
-| D | gentle | 4491 | 1 | 509 | 0.9998 | 0.8982 | 0.9463 |
-| D | strict | 4208 | 0 | 792 | 1.0000 | 0.8416 | 0.9140 |
+| A | raw | 4858 | 0 | 142 | 1.0000 | 0.9716 | 0.9856 |
+| A | gentle | 4855 | 0 | 145 | 1.0000 | 0.9710 | 0.9853 |
+| A | strict | 4747 | 0 | 253 | 1.0000 | 0.9494 | 0.9740 |
+| B | raw | 4426 | 22 | 574 | 0.9951 | 0.8852 | 0.9369 |
+| B | gentle | 4422 | 0 | 578 | 1.0000 | 0.8844 | 0.9387 |
+| B | strict | 4327 | 0 | 673 | 1.0000 | 0.8654 | 0.9278 |
+| C | raw | 4862 | 0 | 138 | 1.0000 | 0.9724 | 0.9860 |
+| C | gentle | 4857 | 0 | 143 | 1.0000 | 0.9714 | 0.9855 |
+| C | strict | 4747 | 0 | 253 | 1.0000 | 0.9494 | 0.9740 |
+| D | raw | 4844 | 11 | 156 | 0.9977 | 0.9688 | 0.9831 |
+| D | gentle | 4841 | 1 | 159 | 0.9998 | 0.9682 | 0.9837 |
+| D | strict | 4736 | 0 | 264 | 1.0000 | 0.9472 | 0.9729 |
 
 
 ## Assignment Analysis - Questions to answer
@@ -689,6 +695,10 @@ There generally didn't seem to be a correlation between read counts and quality.
 The main effect of filtering seems to be to reduce the rate of False positives. Which is predicated on the presence of false positives in your data and the degree to which the filters capture them. Filtering may help for data with lots of false positives. However for B the low prevalence of false positives and tendency of the filtering algorithm to overassign false negatives mean that filtering is ultimately detrimental in all cases. For samples with low read depth like B, the filtering thresholds remove what little signal there is whereas doing best effort calling on the poor data yields a good F1 score of 0.83. 
 
 > Pick **two false negatives** and **two false positives**, from any sample. For each, tell me the sample, tell me the chromosome and coordinate location, put in a screenshot of IGV or JBrowse, and explain the specific cause of the FN or FP call.
+
+| Example data source | Calling method |
+| --- | --- |
+| `archive/before_pe_adapter_20261015_132613/` | Original separate-sample calling |
 
 ### False negative 1
 
