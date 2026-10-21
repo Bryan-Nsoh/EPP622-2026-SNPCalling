@@ -24,7 +24,7 @@ set -euo pipefail
 
 # Note that all pasted code is run from .sh files
 
-# Add path that all subsequent code will reuse to bashrc
+# Run these exports in the current terminal before running the scripts
 export READS_DIR="/nfs/home/bnsoh/test2/reads"
 export RESULTS_DIR="/nfs/home/bnsoh/test2/results"
 export REFERENCE_DIR="/nfs/home/bnsoh/test2/reference"
@@ -72,7 +72,7 @@ multiqc "$RESULTS_DIR"/01_fastqc/ -o "$RESULTS_DIR"/01_multiqc/
 MultiQC gives a rounded number for total reads and does not report total bases per sample. To find out those numbers use this:
 
 ```
-for f in *.fastq.gz; do
+for f in "$READS_DIR"/*.fastq.gz; do
   echo -ne "$f\t"
   zcat "$f" | awk 'NR%4==2{r++; b+=length($0)} END{printf "%d\t%d\t%.1f\n", r, b, b/r}'
 done | column -t
@@ -138,7 +138,7 @@ multiqc "$RESULTS_DIR/02_fastp_fastqc" \
 MultiQC gives a rounded number for total reads and does not report total bases per sample. To find out those numbers use this:
 
 ```
-for f in *.fastq.gz; do
+for f in "$RESULTS_DIR"/02_fastp/*.trimmed.fastq.gz; do
   echo -ne "$f\t"
   zcat "$f" | awk 'NR%4==2{r++; b+=length($0)} END{printf "%d\t%d\t%.1f\n", r, b, b/r}'
 done | column -t
